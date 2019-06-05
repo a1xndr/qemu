@@ -58,6 +58,7 @@ common-obj-y += migration/
 common-obj-y += audio/
 common-obj-m += audio/
 common-obj-y += hw/
+common-obj-y += test/fuzz/
 
 common-obj-y += replay/
 

@@ -2911,8 +2911,12 @@ static void user_register_global_props(void)
     qemu_opts_foreach(qemu_find_opts("global"),
                       global_init_func, NULL, NULL);
 }
-
+#ifdef CONFIG_FUZZ
+int real_main(int argc, char **argv, char **envp);
+int real_main(int argc, char **argv, char **envp)
+#else
 int main(int argc, char **argv, char **envp)
+#endif
 {
     int i;
     int snapshot, linux_boot;
@@ -4523,6 +4527,9 @@ int main(int argc, char **argv, char **envp)
     accel_setup_post(current_machine);
     os_setup_post();
 
+#ifdef CONFIG_FUZZ
+	return 0;
+#endif
     main_loop();
 
     gdbserver_cleanup();

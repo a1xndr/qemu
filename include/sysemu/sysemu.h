@@ -72,6 +72,11 @@ ShutdownCause qemu_shutdown_requested_get(void);
 ShutdownCause qemu_reset_requested_get(void);
 void qemu_system_killed(int signal, pid_t pid);
 void qemu_system_reset(ShutdownCause reason);
+#ifdef CONFIG_FUZZ
+int real_main(int argc, char **argv, char **envp);
+#endif
+
+
 void qemu_system_guest_panicked(GuestPanicInformation *info);
 
 void qemu_add_exit_notifier(Notifier *notify);

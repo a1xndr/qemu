@@ -284,6 +284,10 @@ check-qtest-generic-y += tests/machine-none-test$(EXESUF)
 check-qtest-generic-y += tests/qom-test$(EXESUF)
 check-qtest-generic-y += tests/test-hmp$(EXESUF)
 
+check-fuzz-x86_64-y += tests/fuzz/i440fx_fuzzer$(EXESUF) 
+util-obj += tests/fuzz/i440fx_fuzzer$(EXESUF) 
+
+
 qapi-schema += alternate-any.json
 qapi-schema += alternate-array.json
 qapi-schema += alternate-base.json
@@ -784,6 +788,7 @@ tests/virtio-ccw-test$(EXESUF): tests/virtio-ccw-test.o
 tests/display-vga-test$(EXESUF): tests/display-vga-test.o
 tests/qom-test$(EXESUF): tests/qom-test.o
 tests/test-hmp$(EXESUF): tests/test-hmp.o
+tests/fuzz/i440fx_fuzzer$(EXESUF): tests/fuzz/i440fx_fuzzer.o $(common-obj-y)
 tests/machine-none-test$(EXESUF): tests/machine-none-test.o
 tests/device-plug-test$(EXESUF): tests/device-plug-test.o
 tests/drive_del-test$(EXESUF): tests/drive_del-test.o
@@ -837,7 +842,9 @@ QTEST_TARGETS =
 endif
 
 qtest-obj-y = tests/libqtest.o $(test-util-obj-y)
+fuzz-obj-y = $(test-util-obj-y)
 $(check-qtest-y): $(qtest-obj-y)
+$(check-fuzz-y): $(fuzz-obj-y)
 
 tests/test-qga$(EXESUF): qemu-ga$(EXESUF)
 tests/test-qga$(EXESUF): tests/test-qga.o $(qtest-obj-y)
@@ -885,6 +892,7 @@ $(patsubst %, check-qtest-%, $(QTEST_TARGETS)): check-qtest-%: subdir-%-softmmu 
 	  QTEST_QEMU_BINARY=$*-softmmu/qemu-system-$* \
 	  QTEST_QEMU_IMG=qemu-img$(EXESUF))
 
+check-fuzz-x86_64:   $(check-fuzz-x86_64-y)
 check-unit: $(check-unit-y)
 	$(call do_test_human, $^)
 
@@ -1151,6 +1159,7 @@ check-acceptance: check-venv $(TESTS_RESULTS_DIR)
 .PHONY: check-block check-qapi-schema check-qtest check-unit check check-clean
 check-qapi-schema: $(patsubst %,check-%, $(check-qapi-schema-y)) check-tests/qapi-schema/doc-good.texi
 check-qtest: $(patsubst %,check-qtest-%, $(QTEST_TARGETS))
+check-fuzz: check-fuzz-x86_64
 check-block: $(patsubst %,check-%, $(check-block-y))
 check: check-qapi-schema check-unit check-softfloat check-qtest check-decodetree
 check-clean:

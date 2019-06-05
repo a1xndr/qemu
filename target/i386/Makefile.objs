@@ -17,6 +17,9 @@ obj-$(CONFIG_HAX) += hax-all.o hax-mem.o hax-posix.o
 endif
 obj-$(CONFIG_HVF) += hvf/
 obj-$(CONFIG_WHPX) += whpx-all.o
+ifeq ($(CONFIG_FUZZ),y)
+obj-$(CONFIG_FUZZ) += ../../tests/fuzz/i440fx_fuzzer.o
+endif
 endif
 obj-$(CONFIG_SEV) += sev.o
 obj-$(call lnot,$(CONFIG_SEV)) += sev-stub.o
