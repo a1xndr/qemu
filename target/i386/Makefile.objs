@@ -18,6 +18,7 @@ endif
 obj-$(CONFIG_HVF) += hvf/
 obj-$(CONFIG_WHPX) += whpx-all.o
 ifeq ($(CONFIG_FUZZ),y)
+obj-$(CONFIG_FUZZ) += ../../tests/fuzz/ramfile.o
 obj-$(CONFIG_FUZZ) += ../../tests/fuzz/i440fx_fuzzer.o
 endif
 endif

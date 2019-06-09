@@ -1405,7 +1405,11 @@ void qemu_savevm_state_cleanup(void)
     }
 }
 
+#ifdef CONFIG_FUZZ
+int qemu_savevm_state(QEMUFile *f, Error **errp)
+#else
 static int qemu_savevm_state(QEMUFile *f, Error **errp)
+#endif
 {
     int ret;
     MigrationState *ms = migrate_get_current();
@@ -1472,10 +1476,10 @@ int qemu_save_device_state(QEMUFile *f)
 {
     SaveStateEntry *se;
 
-    if (!migration_in_colo_state()) {
-        qemu_put_be32(f, QEMU_VM_FILE_MAGIC);
-        qemu_put_be32(f, QEMU_VM_FILE_VERSION);
-    }
+    /* if (!migration_in_colo_state() && false) { */
+    /*     qemu_put_be32(f, QEMU_VM_FILE_MAGIC); */
+    /*     qemu_put_be32(f, QEMU_VM_FILE_VERSION); */
+    /* } */
     cpu_synchronize_all_states();
 
     QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
@@ -1490,6 +1494,13 @@ int qemu_save_device_state(QEMUFile *f)
         if (se->vmsd && !vmstate_save_needed(se->vmsd, se->opaque)) {
             continue;
         }
+		if(se->vmsd)
+		{
+			if(strcmp(se->vmsd->name, "piix4_pm"))
+				continue;
+			else
+				printf("%s\n", se->vmsd->name);
+		}
 
         save_section_header(f, se, QEMU_VM_SECTION_FULL);
 
@@ -2425,7 +2436,6 @@ retry:
 out:
     if (ret < 0) {
         qemu_file_set_error(f, ret);
-
         /*
          * If we are during an active postcopy, then we pause instead
          * of bail out to at least keep the VM's dirty data.  Note
