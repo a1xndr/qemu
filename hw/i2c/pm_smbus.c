@@ -442,6 +442,21 @@ static uint64_t smb_ioport_readb(void *opaque, hwaddr addr, unsigned width)
 
 static void pm_smbus_reset(PMSMBus *s)
 {
+#ifdef CONFIG_FUZZ
+	s->smb_ctl=0;
+	s->smb_cmd=0;
+	s->smb_addr=0;
+	s->smb_data0=0;
+	s->smb_data1=0;
+	s->smb_index=0;
+	s->smb_blkdata=0;
+	memset(s->smb_data, 0, PM_SMBUS_MAX_MSG_SIZE);
+	s->smb_auxctl |= AUX_BLK;
+	/* s->i2c_enable=0; */
+	/* s->in_i2c_block_read=0; */
+	s->start_transaction_on_status_read=0;
+#endif
+	printf("here!\n");
     s->op_done = true;
     s->smb_index = 0;
     s->smb_stat = 0;

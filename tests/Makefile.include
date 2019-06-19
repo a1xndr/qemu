@@ -788,7 +788,7 @@ tests/virtio-ccw-test$(EXESUF): tests/virtio-ccw-test.o
 tests/display-vga-test$(EXESUF): tests/display-vga-test.o
 tests/qom-test$(EXESUF): tests/qom-test.o
 tests/test-hmp$(EXESUF): tests/test-hmp.o
-tests/fuzz/i440fx_fuzzer$(EXESUF): tests/fuzz/i440fx_fuzzer.o $(common-obj-y)
+tests/fuzz/i440fx_fuzzer$(EXESUF): tests/fuzz/i440fx_fuzzer.o $(common-obj-y)  $(libqgraph-obj-y) $(libqos-obj-y)
 tests/machine-none-test$(EXESUF): tests/machine-none-test.o
 tests/device-plug-test$(EXESUF): tests/device-plug-test.o
 tests/drive_del-test$(EXESUF): tests/drive_del-test.o
@@ -892,7 +892,8 @@ $(patsubst %, check-qtest-%, $(QTEST_TARGETS)): check-qtest-%: subdir-%-softmmu 
 	  QTEST_QEMU_BINARY=$*-softmmu/qemu-system-$* \
 	  QTEST_QEMU_IMG=qemu-img$(EXESUF))
 
-check-fuzz-x86_64:   $(check-fuzz-x86_64-y)
+check-fuzz-x86_64:   $(check-fuzz-x86_64-y) $(common-obj-y)  $(libqgraph-obj-y) $(libqos-obj-y)
+
 check-unit: $(check-unit-y)
 	$(call do_test_human, $^)
 

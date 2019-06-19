@@ -109,7 +109,9 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
             return ret;
         }
     }
+
     while (field->name) {
+		/* printf("%s %s\n", vmsd->name, field->name); */
         trace_vmstate_load_state_field(vmsd->name, field->name);
         if ((field->field_exists &&
              field->field_exists(opaque, version_id)) ||

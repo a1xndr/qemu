@@ -103,6 +103,9 @@ int main(int argc, char **argv)
 #include "fsdev/qemu-fsdev.h"
 #endif
 #include "sysemu/qtest.h"
+#ifdef CONFIG_FUZZ
+#include "tests/libqtest.h"
+#endif
 
 #include "disas/disas.h"
 
@@ -2934,7 +2937,9 @@ int main(int argc, char **argv, char **envp)
     MachineClass *machine_class;
     const char *cpu_option;
     const char *vga_model = NULL;
+/* #ifndef CONFIG_FUZZ */
     const char *qtest_chrdev = NULL;
+/* #endif */
     const char *qtest_log = NULL;
     const char *incoming = NULL;
     bool userconfig = true;
@@ -4252,7 +4257,9 @@ int main(int argc, char **argv, char **envp)
     migration_object_init();
 
     if (qtest_chrdev) {
+#ifndef CONFIG_FUZZ
         qtest_init(qtest_chrdev, qtest_log, &error_fatal);
+#endif
     }
 
     machine_opts = qemu_get_machine_opts();
@@ -4528,6 +4535,7 @@ int main(int argc, char **argv, char **envp)
     os_setup_post();
 
 #ifdef CONFIG_FUZZ
+	qtest_allowed=0;
 	return 0;
 #endif
     main_loop();

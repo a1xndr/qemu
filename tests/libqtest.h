@@ -76,6 +76,10 @@ QTestState *qtest_init_without_qmp_handshake(const char *extra_args);
  */
 QTestState *qtest_init_with_serial(const char *extra_args, int *sock_fd);
 
+#ifdef CONFIG_FUZZ
+QTestState *qtest_init_fuzz(const char *extra_args, int *sock_fd);
+#endif
+
 /**
  * qtest_quit:
  * @s: #QTestState instance to operate on.
@@ -940,5 +944,9 @@ void qmp_assert_error_class(QDict *rsp, const char *class);
  * Returns: true if the child is still alive.
  */
 bool qtest_probe_child(QTestState *s);
+
+
+void qtest_client_recv(const char *str, size_t len);
+void GCC_FMT_ATTR(2, 3) qtest_send_to_server(QTestState *s, const char *fmt, ...);
 
 #endif

@@ -15,12 +15,12 @@
  */
 
 #include "qemu/osdep.h"
-
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/un.h>
 
 #include "libqtest.h"
+#include "sysemu/qtest.h"
 #include "qemu-common.h"
 #include "qemu/cutils.h"
 #include "qapi/error.h"
@@ -34,6 +34,9 @@
 #define SOCKET_TIMEOUT 50
 
 QTestState *global_qtest;
+#ifdef CONFIG_FUZZ
+static GString *recv_str;
+#endif
 
 struct QTestState
 {
@@ -48,6 +51,7 @@ struct QTestState
 
 static GHookList abrt_hooks;
 static struct sigaction sigact_old;
+
 
 static int qtest_query_target_endianness(QTestState *s);
 
@@ -294,6 +298,9 @@ QTestState *qtest_init(const char *extra_args)
     return s;
 }
 
+#ifdef CONFIG_FUZZ
+#endif
+
 QTestState *qtest_vinitf(const char *fmt, va_list ap)
 {
     char *args = g_strdup_vprintf(fmt, ap);
@@ -340,6 +347,20 @@ QTestState *qtest_init_with_serial(const char *extra_args, int *sock_fd)
     return qts;
 }
 
+#ifdef CONFIG_FUZZ
+QTestState *qtest_init_fuzz(const char *extra_args, int *sock_fd)
+{
+    QTestState *qts;
+    qts = g_new(QTestState, 1);
+    qts->wstatus = 0;
+    for (int i = 0; i < MAX_IRQ; i++) {
+        qts->irq_level[i] = false;
+    }
+    qts->big_endian = qtest_query_target_endianness(qts);
+
+    return qts;
+}
+#endif
 void qtest_quit(QTestState *s)
 {
     g_hook_destroy_link(&abrt_hooks, g_hook_find_data(&abrt_hooks, TRUE, s));
@@ -377,17 +398,30 @@ static void socket_sendf(int fd, const char *fmt, va_list ap)
 {
     gchar *str = g_strdup_vprintf(fmt, ap);
     size_t size = strlen(str);
-
+#ifdef CONFIG_FUZZ
+	// Call qtest_process_inbuf instead
+	GString *gstr = g_string_new_len(str, size);
+	qtest_server_recv(gstr);
+#else 
     socket_send(fd, str, size);
+#endif
     g_free(str);
 }
 
 static void GCC_FMT_ATTR(2, 3) qtest_sendf(QTestState *s, const char *fmt, ...)
 {
     va_list ap;
-
     va_start(ap, fmt);
+	printf(fmt, ap);
     socket_sendf(s->fd, fmt, ap);
+    va_end(ap);
+}
+
+void GCC_FMT_ATTR(2, 3) qtest_send_to_server(QTestState *s, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    qtest_sendf(s, fmt, ap);
     va_end(ap);
 }
 
@@ -397,6 +431,15 @@ static GString *qtest_recv_line(QTestState *s)
     size_t offset;
     char *eol;
 
+#ifdef CONFIG_FUZZ
+
+    eol = strchr(recv_str->str, '\n');
+	g_assert(eol);
+	offset = eol - recv_str->str;
+    line = g_string_new_len(recv_str->str, offset);
+    g_string_erase(recv_str, 0, offset + 1);
+
+#else
     while ((eol = strchr(s->rx->str, '\n')) == NULL) {
         ssize_t len;
         char buffer[1024];
@@ -417,6 +460,7 @@ static GString *qtest_recv_line(QTestState *s)
     offset = eol - s->rx->str;
     line = g_string_new_len(s->rx->str, offset);
     g_string_erase(s->rx, 0, offset + 1);
+#endif
 
     return line;
 }
@@ -724,6 +768,9 @@ char *qtest_hmp(QTestState *s, const char *fmt, ...)
 
 const char *qtest_get_arch(void)
 {
+#ifdef CONFIG_FUZZ
+	return "i386";
+#endif
     const char *qemu = qtest_qemu_binary();
     const char *end = strrchr(qemu, '/');
 
@@ -1247,3 +1294,14 @@ void qmp_assert_error_class(QDict *rsp, const char *class)
 
     qobject_unref(rsp);
 }
+#ifdef CONFIG_FUZZ
+void qtest_client_recv(const char *str, size_t len)
+{
+	if(!recv_str)
+		recv_str = g_string_new(NULL);
+	g_string_append_len(recv_str, str, len);
+	return;
+}
+#endif
+
+

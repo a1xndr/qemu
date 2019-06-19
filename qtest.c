@@ -10,7 +10,6 @@
  * See the COPYING file in the top-level directory.
  *
  */
-
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu-common.h"
@@ -28,6 +27,9 @@
 #include "qemu/option.h"
 #include "qemu/error-report.h"
 #include "qemu/cutils.h"
+#ifdef CONFIG_FUZZ
+#include "tests/libqtest.h"
+#endif
 #ifdef TARGET_PPC64
 #include "hw/ppc/spapr_rtas.h"
 #endif
@@ -231,10 +233,14 @@ static void GCC_FMT_ATTR(1, 2) qtest_log_send(const char *fmt, ...)
 
 static void do_qtest_send(CharBackend *chr, const char *str, size_t len)
 {
+#ifdef CONFIG_FUZZ
+	qtest_client_recv(str, strlen(str));
+#else
     qemu_chr_fe_write_all(chr, (uint8_t *)str, len);
     if (qtest_log_fp && qtest_opened) {
         fprintf(qtest_log_fp, "%s", str);
     }
+#endif
 }
 
 static void qtest_send(CharBackend *chr, const char *str)
@@ -678,6 +684,7 @@ static void qtest_process_command(CharBackend *chr, gchar **words)
     }
 }
 
+#ifndef CONFIG_FUZZ
 static void qtest_process_inbuf(CharBackend *chr, GString *inbuf)
 {
     char *end;
@@ -699,6 +706,29 @@ static void qtest_process_inbuf(CharBackend *chr, GString *inbuf)
         g_string_free(cmd, TRUE);
     }
 }
+#else
+static void qtest_process_inbuf(CharBackend *chr, GString *inbuf)
+{
+    char *end;
+
+    while ((end = strchr(inbuf->str, '\n')) != NULL) {
+        size_t offset;
+        GString *cmd;
+        gchar **words;
+
+        offset = end - inbuf->str;
+
+        cmd = g_string_new_len(inbuf->str, offset);
+        g_string_erase(inbuf, 0, offset + 1);
+
+        words = g_strsplit(cmd->str, " ", 0);
+        qtest_process_command(chr, words);
+        g_strfreev(words);
+
+        g_string_free(cmd, TRUE);
+    }
+}
+#endif
 
 static void qtest_read(void *opaque, const uint8_t *buf, int size)
 {
@@ -749,7 +779,11 @@ static void qtest_event(void *opaque, int event)
     }
 }
 
+#ifdef CONFIG_FUZZ
+void qtest_init_server(const char *qtest_chrdev, const char *qtest_log, Error **errp)
+#else
 void qtest_init(const char *qtest_chrdev, const char *qtest_log, Error **errp)
+#endif
 {
     Chardev *chr;
 
@@ -781,3 +815,8 @@ bool qtest_driver(void)
 {
     return qtest_chr.chr != NULL;
 }
+#ifdef CONFIG_FUZZ
+void qtest_server_recv(GString *inbuf){
+	qtest_process_inbuf(NULL, inbuf);
+}
+#endif

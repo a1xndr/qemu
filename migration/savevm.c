@@ -1496,10 +1496,14 @@ int qemu_save_device_state(QEMUFile *f)
         }
 		if(se->vmsd)
 		{
-			if(strcmp(se->vmsd->name, "piix4_pm"))
-				continue;
-			else
+			//if(strcmp(se->vmsd->name, "serial") !=0 && strcmp(se->vmsd->name, "uicon") !=0){
+			if(strcmp(se->vmsd->name, "uicon") !=0){
 				printf("%s\n", se->vmsd->name);
+				continue;
+			}
+			else{
+				printf("YO %s\n", se->vmsd->name);
+			}
 		}
 
         save_section_header(f, se, QEMU_VM_SECTION_FULL);

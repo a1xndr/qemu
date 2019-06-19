@@ -20,6 +20,9 @@ obj-$(CONFIG_WHPX) += whpx-all.o
 ifeq ($(CONFIG_FUZZ),y)
 obj-$(CONFIG_FUZZ) += ../../tests/fuzz/ramfile.o
 obj-$(CONFIG_FUZZ) += ../../tests/fuzz/i440fx_fuzzer.o
+obj-$(CONFIG_FUZZ) += ../../tests/libqtest.o ../../tests/libqos/qgraph.o ../../tests/libqos/libqos.o
+obj-$(CONFIG_FUZZ) +=  ../../tests/libqos/malloc.o
+obj-$(CONFIG_FUZZ) +=  ../../tests/fuzz/qos_helpers.o
 endif
 endif
 obj-$(CONFIG_SEV) += sev.o
