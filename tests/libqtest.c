@@ -401,7 +401,9 @@ static void socket_sendf(int fd, const char *fmt, va_list ap)
 #ifdef CONFIG_FUZZ
 	// Call qtest_process_inbuf instead
 	GString *gstr = g_string_new_len(str, size);
+	printf("%s",gstr->str);
 	qtest_server_recv(gstr);
+    g_string_free(gstr, true);
 #else 
     socket_send(fd, str, size);
 #endif
@@ -412,29 +414,29 @@ static void GCC_FMT_ATTR(2, 3) qtest_sendf(QTestState *s, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-	printf(fmt, ap);
+	/* printf(fmt, ap); */
     socket_sendf(s->fd, fmt, ap);
     va_end(ap);
 }
 
-void GCC_FMT_ATTR(2, 3) qtest_send_to_server(QTestState *s, const char *fmt, ...)
+void qtest_send_to_server(QTestState *s, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    qtest_sendf(s, fmt, ap);
+	gchar *str = g_strdup_vprintf(fmt, ap);
+    qtest_sendf(s, "%s", str);
+	g_free(str);
     va_end(ap);
 }
 
-static GString *qtest_recv_line(QTestState *s)
+GString *qtest_recv_line(QTestState *s)
 {
     GString *line;
     size_t offset;
     char *eol;
 
 #ifdef CONFIG_FUZZ
-
     eol = strchr(recv_str->str, '\n');
-	g_assert(eol);
 	offset = eol - recv_str->str;
     line = g_string_new_len(recv_str->str, offset);
     g_string_erase(recv_str, 0, offset + 1);

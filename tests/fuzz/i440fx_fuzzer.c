@@ -30,27 +30,24 @@
 #include "tests/libqos/qgraph_internal.h"
 #include "tests/libqos/virtio-net.h"
 #include "hw/virtio/virtio-net.h"
-
+#include "qtest_fuzz.h"
+#include "fuzz.h"
 
 
 void usage(void);
 int LLVMFuzzerTestOneInput(const unsigned char *Data, size_t Size);
 int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp);
-void reset(void);
 int fuzz_i440(const unsigned char *Data, size_t Size);
 int fuzz_ports(const unsigned char *Data, size_t Size);
 int qtest_test(const unsigned char *Data, size_t Size);
 
 
-QTestState *s;
-int fuzz_argc = 9;
-const char *fuzz_argv[] = {"qemu-system-x86_64",
+int fuzz_argc = 7;
+const char *fuzz_argv[] = {"qemu-system-i386",
     "-machine",
-    "accel=fuzz",
-	"-device",
-	"virtio-net-pci,netdev=hs0,addr=04.0",
-	"-netdev",
-	"socket,fd=4,id=hs0",
+    "accel=fuzz,type=pc-i440fx-2.12",
+	"-m",
+	"1M",
     "-display",
     "none"};
 
@@ -58,10 +55,6 @@ const char *fuzz_envp[] = {"qemu-system-x86_64", "-accel=fuzz"};
 
 int (*fuzzer)(const unsigned char *Data, size_t Size);
 
-QEMUFile *writefile;
-QEMUFile *ramfile;
-QEMUFile local;
-ram_disk *rd;
 Error *err = NULL;
 size_t len;
 
@@ -79,23 +72,6 @@ typedef struct qtest_unit {
 	uint32_t op2;
 } qtest_unit;
 
-void reset(void){
-    /* pause_all_vcpus(); */
-	/* if (!runstate_check(RUN_STATE_RUNNING) && */
-			/* !runstate_check(RUN_STATE_INMIGRATE)) */
-		/* runstate_set(RUN_STATE_PRELAUNCH); */
-    /* resume_all_vcpus(); */
-	/* main_loop_wait(false); */
-    /* qemu_system_reset(SHUTDOWN_CAUSE_GUEST_RESET); */
-    /* vm_stop(RUN_STATE_SAVE_VM); */
-	/* qemu_freopen_ro_ram(ramfile); */
-	/* printf("Restoring Machine State...\n"); */
-    /* qemu_system_reset(SHUTDOWN_CAUSE_GUEST_RESET); */ 
-	/* int ret = qemu_load_device_state(ramfile); */
-    /* vm_start(); */
-	/* if (ret < 0) */
-	/* 	exit(-1); */
-}
 
 // Fuzz Reads and Writes to the i440 using ports 0x0CF8 and 0x0CFC
 int fuzz_i440(const unsigned char *Data, size_t Size){
@@ -113,24 +89,11 @@ int fuzz_i440(const unsigned char *Data, size_t Size){
 		u++;
 		main_loop_wait(false);
 	}
-	reset();
+	/* reset(); */
     return 0;
 }
 
 int fuzz_ports(const unsigned char *Data, size_t Size){
-	/* int i = 0; */
-	/* port_fuzz_unit *u = (port_fuzz_unit*)Data; */
-	/* int read; */
-	/* while( (i+1)*sizeof(port_fuzz_unit) < Size) */
-	/* { */
-	/* 	printf(">>> %0xx to @0x%x\n", u->data, 0x3f8 + u->addr2%0x08); */
-	/* 	cpu_outb( 0x3f8 + u->addr2%0x08, u->data); */
-	/* 	/1* printf("<<< @0x%x\n", u->addr1%0x08); *1/ */
-	/* 	/1* read = cpu_inb( 0x3f8 + u->addr1%0x8); *1/ */
-	/* 	i++; */
-	/* 	u++; */
-	/* } */
-
 
 	for(int i=0; i<20442; i++){
 		/* printf("HERE %d!\n", i); */
@@ -150,24 +113,28 @@ int fuzz_ports(const unsigned char *Data, size_t Size){
     return 0;
 }
 
-
 int qtest_test(const unsigned char *Data, size_t Size){
 	/* int i = 0; */
 	char *u = (char*)Data;
+	char buffer[1000];
 	/* int i =0; */
 	char *g = u;
 	int i =0;
 	while(g != NULL)
 	{
 		char *h = (char*)memchr(g, '\n', Size-(g-u));
-		if(h==NULL){
+		if(h==NULL || h==g || g[0] == 0){
 			break;
 		}
 		i+=h-g;
-		printf("COMMAND: %.*s\n",(int)(h-g),g);
-		qtest_send_to_server(s,"%.*s", (int)(h-g), g);
+		sprintf(buffer, "%.*s\n",(int)(h-g),g);
+		printf("Sending Command: %s", buffer);
+		qtest_send_to_server(s,"%s", buffer);
+		printf("Received back: '%s'\n", qtest_recv_line(s)->str);
 		g = h+1;
+		main_loop_wait(false);
 	}
+	/* reset(); */
 	return 0;
 }
 
@@ -177,7 +144,7 @@ int LLVMFuzzerTestOneInput(const unsigned char *Data, size_t Size)
 }
 
 void usage(void) {
-	printf("Usage: ./fuzz [--i440fx|--ports] [LIBFUZZER ARGUMENTS]\n");
+	printf("Usage: ./fuzz [--i440fx|--ports|--qtest] [LIBFUZZER ARGUMENTS]\n");
 	exit(0);
 }
 int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp)
@@ -191,40 +158,15 @@ int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp)
 	else if( strcmp(target, "--ports") == 0 )
 		fuzzer = &fuzz_ports;
 	else if( strcmp(target, "--qtest") == 0 )
-		fuzzer = &qtest_test;
+		fuzzer = &qtest_fuzz;
 	else
 		usage();
 
-    int *sv = g_new(int, 2);
-	socketpair(PF_UNIX, SOCK_STREAM, 0, sv);
-	g_free(sv);
 
-    // Call vl.c:main which will return just before main_loop()
     real_main(fuzz_argc, (char**)fuzz_argv, (char**)fuzz_envp);
-	s = qtest_init_fuzz(NULL, NULL);
+	setup_qtest();
 	main_loop_wait(false);
-
-    /* qos_graph_init(); */
-    /* module_call_init(MODULE_INIT_LIBQOS); */
-	/* QOSGraphTestOptions opts = { */
-		/* /1* .before = virtio_net_test_setup, *1/ */
-	/* }; */
-	/* qos_add_test("send-fuzz", "virtio-pci", send_fuzz, &opts); */
-
-    /* qos_set_machines_devices_available(); */
-    /* qos_print_graph(); */
-	
-	/* printf("\nOUT:\n"); */
-	/* writefile = qemu_fopen_ram(&rd); */
-	/* global_state_store(); */
-	/* qemu_save_device_state(writefile); */
-	/* qemu_fflush(writefile); */
-	/* len = rd->len; */
-	/* ramfile = qemu_fopen_ro_ram(rd); */
-	/* rd->base+=2*sizeof(uint32_t); */
-	/* rd->len-=sizeof(uint32_t); */
-
-
+	save_device_state();
     return 0;
 }
 

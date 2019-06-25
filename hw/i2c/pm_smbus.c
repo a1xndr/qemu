@@ -274,9 +274,9 @@ static void smb_ioport_writeb(void *opaque, hwaddr addr, uint64_t val,
 
             s->smb_index++;
             // revert f2609ffdf39bcd4f89b5f67b33347490023a7a84 to test fuzzer
-            /* if (s->smb_index >= PM_SMBUS_MAX_MSG_SIZE) { */
-            /*     s->smb_index = 0; */
-            /* } */
+            if (s->smb_index >= PM_SMBUS_MAX_MSG_SIZE) {
+                s->smb_index = 0;
+            }
             if (!read && s->smb_index == s->smb_data0) {
                 uint8_t prot = (s->smb_ctl >> 2) & 0x07;
                 uint8_t cmd = s->smb_cmd;

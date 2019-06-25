@@ -78,6 +78,7 @@ QTestState *qtest_init_with_serial(const char *extra_args, int *sock_fd);
 
 #ifdef CONFIG_FUZZ
 QTestState *qtest_init_fuzz(const char *extra_args, int *sock_fd);
+GString *qtest_recv_line(QTestState *s);
 #endif
 
 /**
@@ -947,6 +948,6 @@ bool qtest_probe_child(QTestState *s);
 
 
 void qtest_client_recv(const char *str, size_t len);
-void GCC_FMT_ATTR(2, 3) qtest_send_to_server(QTestState *s, const char *fmt, ...);
+void qtest_send_to_server(QTestState *s, const char *fmt, ...);
 
 #endif

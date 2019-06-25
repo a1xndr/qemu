@@ -7300,7 +7300,7 @@ if test "$sheepdog" = "yes" ; then
   echo "CONFIG_SHEEPDOG=y" >> $config_host_mak
 fi
 if test "$fuzzing" = "yes" ; then
-  QEMU_CFLAGS="$QEMU_CFLAGS -g -O1 -fsanitize=fuzzer,address"
+  QEMU_CFLAGS="$QEMU_CFLAGS -g -O1 -fsanitize=fuzzer,address -fsanitize-recover=address -fprofile-instr-generate -fcoverage-mapping"
   LDFLAGS="$LDFLAGS -fsanitize=fuzzer,address"
   # QEMU_CFLAGS="$QEMU_CFLAGS -g -O1 -fsanitize=fuzzer,address"
   echo "CONFIG_FUZZ=y" >> $config_host_mak
