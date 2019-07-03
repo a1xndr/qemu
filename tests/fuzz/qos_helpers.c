@@ -7,6 +7,9 @@
 #include "libqos/qgraph.h"
 #include "libqos/qgraph_internal.h"
 #include "./qapi/qapi-commands-misc.h"
+#include <wordexp.h>
+#include "sysemu/sysemu.h"
+#include "sysemu/cpus.h"
 
 static void apply_to_node(const char *name, bool is_machine, bool is_abstract)
 {
@@ -63,9 +66,7 @@ void qos_set_machines_devices_available(void)
     QObject *response;
     QDict *args = qdict_new();
     QList *lst;
-	Error *err =NULL;
-	/* qmp_init_marshal(&qmp_commands); */
-
+	Error *err =NULL; /* qmp_init_marshal(&qmp_commands); */ 
 	/* qdict_put_str(req, "execute", "query-machines" ); */
 
 	qmp_marshal_query_machines(NULL,&response, &err);
@@ -88,13 +89,23 @@ void qos_set_machines_devices_available(void)
     /* list = qdict_get_qlist((QDict*)response, "return"); */
 	lst = qobject_to(QList, response);
     apply_to_qlist(lst, false);
-
+	/* qdict_destroy_obj(QOBJECT(req)); */
+	/* qdict_destroy_obj(QOBJECT(args)); */
     qobject_unref(response);
+    qobject_unref(req);
+    /* qobject_unref(args); */
 }
+
+static char **current_path;
 
 static QGuestAllocator *get_machine_allocator(QOSGraphObject *obj)
 {
     return obj->get_driver(obj, "memory");
+}
+
+void *qos_allocate_objects(QTestState *qts, QGuestAllocator **p_alloc)
+{
+    return allocate_objects(qts, current_path + 1, p_alloc);
 }
 
 void *allocate_objects(QTestState *qts, char **path, QGuestAllocator **p_alloc)
@@ -152,3 +163,125 @@ void *allocate_objects(QTestState *qts, char **path, QGuestAllocator **p_alloc)
     }
 }
 
+char **fuzz_path_vec;
+void* qos_obj;
+QGuestAllocator *qos_alloc;
+
+
+void run_one_test(char **path)
+{
+    QOSGraphNode *test_node;
+    QGuestAllocator *alloc = NULL;
+    void *obj;
+    GString *cmd_line = g_string_new(path[0]);
+    void *test_arg;
+
+    /* Before test */
+    current_path = path;
+    test_node = qos_graph_get_node(path[(g_strv_length(path) - 1)]);
+    test_arg = test_node->u.test.arg;
+    if (test_node->u.test.before) {
+        test_arg = test_node->u.test.before(cmd_line, test_arg);
+    }
+	g_string_prepend(cmd_line, "qemu-system-i386 -display none -machine accel=fuzz -m 1500k "); //TODO: correct this
+	wordexp_t result;
+	wordexp (cmd_line->str, &result, 0);
+	qos_argc = result.we_wordc;
+	qos_argv = result.we_wordv;
+
+	real_main(qos_argc, qos_argv, NULL);
+    g_string_free(cmd_line, true);
+
+    obj = qos_allocate_objects(global_qtest, &alloc);
+	qos_obj = obj;
+	qos_alloc = alloc;
+	
+    /* test_node->u.test.function(obj, test_arg, alloc); */
+}
+
+int qos_argc;
+char **qos_argv;
+
+void walk_path(QOSGraphNode *orig_path, int len)
+{
+    QOSGraphNode *path;
+    QOSGraphEdge *edge;
+
+    /* etype set to QEDGE_CONSUMED_BY so that machine can add to the command line */
+    QOSEdgeType etype = QEDGE_CONSUMED_BY;
+
+    /* twice QOS_PATH_MAX_ELEMENT_SIZE since each edge can have its arg */
+    char **path_vec = g_new0(char *, (QOS_PATH_MAX_ELEMENT_SIZE * 2));
+    int path_vec_size = 0;
+
+    char *after_cmd, *before_cmd, *after_device;
+    GString *after_device_str = g_string_new("");
+    char *node_name = orig_path->name, *path_str;
+
+    GString *cmd_line = g_string_new("");
+    GString *cmd_line2 = g_string_new("");
+
+    path = qos_graph_get_node(node_name); /* root */
+    node_name = qos_graph_edge_get_dest(path->path_edge); /* machine name */
+
+    path_vec[path_vec_size++] = node_name;
+    path_vec[path_vec_size++] = qos_get_machine_type(node_name);
+
+    for (;;) {
+        path = qos_graph_get_node(node_name);
+        if (!path->path_edge) {
+            break;
+        }
+
+        node_name = qos_graph_edge_get_dest(path->path_edge);
+
+        /* append node command line + previous edge command line */
+        if (path->command_line && etype == QEDGE_CONSUMED_BY) {
+            g_string_append(cmd_line, path->command_line);
+            g_string_append(cmd_line, after_device_str->str);
+            g_string_truncate(after_device_str, 0);
+        }
+
+        path_vec[path_vec_size++] = qos_graph_edge_get_name(path->path_edge);
+        /* detect if edge has command line args */
+        after_cmd = qos_graph_edge_get_after_cmd_line(path->path_edge);
+        after_device = qos_graph_edge_get_extra_device_opts(path->path_edge);
+        before_cmd = qos_graph_edge_get_before_cmd_line(path->path_edge);
+        edge = qos_graph_get_edge(path->name, node_name);
+        etype = qos_graph_edge_get_type(edge);
+
+        if (before_cmd) {
+            g_string_append(cmd_line, before_cmd);
+        }
+        if (after_cmd) {
+            g_string_append(cmd_line2, after_cmd);
+        }
+        if (after_device) {
+            g_string_append(after_device_str, after_device);
+        }
+    }
+
+    path_vec[path_vec_size++] = NULL;
+    g_string_append(cmd_line, after_device_str->str);
+    g_string_free(after_device_str, true);
+
+    g_string_append(cmd_line, cmd_line2->str);
+    g_string_free(cmd_line2, true);
+
+    /* here position 0 has <arch>/<machine>, position 1 has <machine>.
+     * The path must not have the <arch>, qtest_add_data_func adds it.
+     */
+    path_str = g_strjoinv("/", path_vec + 1);
+
+    /* put arch/machine in position 1 so run_one_test can do its work
+     * and add the command line at position 0.
+     */
+    path_vec[1] = path_vec[0];
+    path_vec[0] = g_string_free(cmd_line, false);
+	printf("path_str: %s path_vec[0]: %s [1]: %s\n", path_str, path_vec[0], path_vec[1]);
+
+	fuzz_path_vec = path_vec;
+
+
+    g_free(path_str);
+}

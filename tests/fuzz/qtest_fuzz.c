@@ -13,14 +13,60 @@
 #include "fuzz.h"
 #include "qtest_fuzz.h"
 #include "tests/libqtest.h"
+#include "fuzz/qos_fuzz.h"
 
 
 
-static uint16_t normalize_io_port(uint16_t addr) {
+static uint16_t normalize_io_port(uint64_t addr) {
+	addr = addr%total_io_mem;
+	fuzz_memory_region *fmr = fuzz_memory_region_head;
+	while(addr!=0) {
+		if(!fmr->io){
+			fmr = fmr->next;
+			continue;
+		}
+		if(addr <= fmr->length)
+		{
+			addr= fmr->start + addr;
+			break;
+		}
+		addr -= fmr->length +1;
+		fmr = fmr->next;
+	}
 	if(addr>=0x5655 && addr<=0x565b)
 		return 0;
 	if(addr>=0x510 && addr<=0x518)
 		return 0;
+	if(addr>=0xae00 && addr<=0xae13) // PCI Hotplug
+		return 0;
+	if(addr>=0xaf00 && addr<=0xaf1f) // CPU Hotplug
+		return 0;
+	return addr;
+}
+
+static uint16_t normalize_mem_addr(uint64_t addr) {
+	addr = addr%total_ram_mem;
+	fuzz_memory_region *fmr = fuzz_memory_region_head;
+	while(addr!=0) {
+		if(fmr->io){
+			fmr = fmr->next;
+			continue;
+		}
+		if(addr <= fmr->length)
+		{
+			return fmr->start + addr;
+		}
+		addr -= fmr->length +1;
+		fmr = fmr->next;
+	}
+	/* if(addr>=0x5655 && addr<=0x565b) */
+	/* 	return 0; */
+	/* if(addr>=0x510 && addr<=0x518) */
+	/* 	return 0; */
+	/* if(addr>=0xae00 && addr<=0xae13) // PCI Hotplug */
+	/* 	return 0; */
+	/* if(addr>=0xaf00 && addr<=0xaf1f) // CPU Hotplug */
+	/* 	return 0; */
 	return addr;
 }
 
@@ -105,6 +151,7 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 				pos += sizeof(uint32_t);
 				uint8_t val = *(uint8_t*)(pos);
 				pos += sizeof(uint8_t);
+				addr = normalize_mem_addr(addr);
 				qtest_writeb(s, addr, val);
 			}
 		}
@@ -114,6 +161,7 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 				pos += sizeof(uint32_t);
 				uint16_t val = *(uint16_t*)(pos);
 				pos += sizeof(uint16_t);
+				addr = normalize_mem_addr(addr);
 				qtest_writew(s, addr, val);
 			}
 		}
@@ -123,6 +171,7 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 				pos += sizeof(uint32_t);
 				uint32_t val = *(uint32_t*)(pos);
 				pos += sizeof(uint32_t);
+				addr = normalize_mem_addr(addr);
 				qtest_writel(s, addr, val);
 			}
 		}
@@ -130,6 +179,7 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 			if(pos + sizeof(uint32_t) < End) {
 				uint32_t addr = *(int32_t*)(pos);
 				pos += sizeof(uint32_t);
+				addr = normalize_mem_addr(addr);
 				qtest_readb(s, addr);
 			}
 		}
@@ -137,6 +187,7 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 			if(pos + sizeof(uint32_t) < End) {
 				uint32_t addr = *(int32_t*)(pos);
 				pos += sizeof(uint32_t);
+				addr = normalize_mem_addr(addr);
 				qtest_readw(s, addr);
 			}
 		}
@@ -144,13 +195,14 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 			if(pos + sizeof(uint32_t) < End) {
 				uint32_t addr = *(int32_t*)(pos);
 				pos += sizeof(uint32_t);
+				addr = normalize_mem_addr(addr);
 				qtest_readl(s, addr);
 			}
 		}
 		// Now get the system up and running
-		qtest_recv_line(s);
-		qtest_clock_step_next(s);
-		main_loop_wait(false);
+		/* qtest_recv_line(s); */
+		/* qtest_clock_step_next(s); */
+		/* main_loop_wait(false); */
 	}
 	reset();
 	return 0;

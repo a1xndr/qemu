@@ -401,7 +401,7 @@ static void socket_sendf(int fd, const char *fmt, va_list ap)
 #ifdef CONFIG_FUZZ
 	// Call qtest_process_inbuf instead
 	GString *gstr = g_string_new_len(str, size);
-	printf("%s",gstr->str);
+	printf(">>> %s",gstr->str);
 	qtest_server_recv(gstr);
     g_string_free(gstr, true);
 #else 
@@ -440,7 +440,7 @@ GString *qtest_recv_line(QTestState *s)
 	offset = eol - recv_str->str;
     line = g_string_new_len(recv_str->str, offset);
     g_string_erase(recv_str, 0, offset + 1);
-
+	printf("<<< %s\n", line->str);
 #else
     while ((eol = strchr(s->rx->str, '\n')) == NULL) {
         ssize_t len;

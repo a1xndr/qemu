@@ -30,7 +30,9 @@
 #include "tests/libqos/qgraph_internal.h"
 #include "tests/libqos/virtio-net.h"
 #include "hw/virtio/virtio-net.h"
+
 #include "qtest_fuzz.h"
+#include "qos_fuzz.h"
 #include "fuzz.h"
 
 
@@ -42,12 +44,12 @@ int fuzz_ports(const unsigned char *Data, size_t Size);
 int qtest_test(const unsigned char *Data, size_t Size);
 
 
-int fuzz_argc = 7;
+int fuzz_argc = 5;
 const char *fuzz_argv[] = {"qemu-system-i386",
     "-machine",
-    "accel=fuzz,type=pc-i440fx-2.12",
-	"-m",
-	"1M",
+    "accel=fuzz",
+	/* "-m", */
+	/* "1M", */
     "-display",
     "none"};
 
@@ -144,11 +146,12 @@ int LLVMFuzzerTestOneInput(const unsigned char *Data, size_t Size)
 }
 
 void usage(void) {
-	printf("Usage: ./fuzz [--i440fx|--ports|--qtest] [LIBFUZZER ARGUMENTS]\n");
+	printf("Usage: ./fuzz [--i440fx|--ports|--qtest|--qos] [LIBFUZZER ARGUMENTS]\n");
 	exit(0);
 }
 int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp)
 {
+	void (*setup)(void) = NULL ;
 	if(*argc <= 1)
 		usage();
 	char *target = (*argv)[1];
@@ -159,14 +162,37 @@ int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp)
 		fuzzer = &fuzz_ports;
 	else if( strcmp(target, "--qtest") == 0 )
 		fuzzer = &qtest_fuzz;
+	else if( strcmp(target, "--qos") == 0 )
+	{
+		fuzzer = &qos_fuzz;
+		setup = &qos_setup;
+	}
 	else
 		usage();
 
-
-    real_main(fuzz_argc, (char**)fuzz_argv, (char**)fuzz_envp);
 	setup_qtest();
+	if(setup)
+	{
+		setup();
+		/* real_main(qos_argc, (char**)qos_argv, (char**)fuzz_envp); */
+	}
+	else {
+		/* module_call_init(MODULE_INIT_QOM); */
+		real_main(fuzz_argc, (char**)fuzz_argv, (char**)fuzz_envp);
+	}
+
 	main_loop_wait(false);
 	save_device_state();
+	mtree_info(true, true, true);
+	fuzz_memory_region *fmr = fuzz_memory_region_head;
+	while(true){
+		printf("%lx:%lx\n", fmr->start, fmr->length);
+		fmr = fmr->next;
+		if(fmr == fuzz_memory_region_head)
+			break;
+	}
+	/* printf("Totals %ld %ld", total_io_mem, total_ram_mem); */
+	/* exit(0); */
     return 0;
 }
 

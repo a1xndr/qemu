@@ -504,15 +504,15 @@ void main_loop_wait(int nonblocking)
     } else {
         timeout_ns = (uint64_t)mlpoll.timeout * (int64_t)(SCALE_MS);
     }
-#ifndef CONFIG_FUZZ
+/* #ifndef CONFIG_FUZZ */
+	timeout_ns=5000000;
     timeout_ns = qemu_soonest_timeout(timeout_ns,
                                       timerlistgroup_deadline_ns(
                                           &main_loop_tlg));
-
     ret = os_host_main_loop_wait(timeout_ns);
-#else
-    ret = os_host_main_loop_wait(10);
-#endif
+/* #else */
+/*     ret = os_host_main_loop_wait(10); */
+/* #endif */
     mlpoll.state = ret < 0 ? MAIN_LOOP_POLL_ERR : MAIN_LOOP_POLL_OK;
     notifier_list_notify(&main_loop_poll_notifiers, &mlpoll);
 

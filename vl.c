@@ -2937,9 +2937,7 @@ int main(int argc, char **argv, char **envp)
     MachineClass *machine_class;
     const char *cpu_option;
     const char *vga_model = NULL;
-/* #ifndef CONFIG_FUZZ */
     const char *qtest_chrdev = NULL;
-/* #endif */
     const char *qtest_log = NULL;
     const char *incoming = NULL;
     bool userconfig = true;
@@ -2968,7 +2966,9 @@ int main(int argc, char **argv, char **envp)
     atexit(qemu_run_exit_notifiers);
     qemu_init_exec_dir(argv[0]);
 
+#ifndef CONFIG_FUZZ
     module_call_init(MODULE_INIT_QOM);
+#endif
 
     qemu_add_opts(&qemu_drive_opts);
     qemu_add_drive_opts(&qemu_legacy_drive_opts);
