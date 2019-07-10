@@ -16,8 +16,31 @@
 #include "fuzz/qos_fuzz.h"
 
 
+static void enum_memory(void) {
+	mtree_info(true, true, true);
+	fuzz_memory_region *fmr = g_new0(fuzz_memory_region, 1);
+
+	fmr->io = false;
+	fmr->start = 0x100000;
+	fmr->length = 0x10000;
+	fmr->next = fuzz_memory_region_head;
+	fuzz_memory_region_tail->next = fmr;
+	fuzz_memory_region_tail = fmr;
+	fmr = fuzz_memory_region_head;
+
+	while(true){
+		printf("%lx:%lx\n", fmr->start, fmr->length);
+		fmr = fmr->next;
+		if(fmr == fuzz_memory_region_head)
+			break;
+	}
+	/* printf("Totals %ld %ld", total_io_mem, total_ram_mem); */
+	/* exit(0); */
+}
 
 static uint16_t normalize_io_port(uint64_t addr) {
+	if(!fuzz_memory_region_head)
+		enum_memory();
 	addr = addr%total_io_mem;
 	fuzz_memory_region *fmr = fuzz_memory_region_head;
 	while(addr!=0) {
@@ -45,6 +68,8 @@ static uint16_t normalize_io_port(uint64_t addr) {
 }
 
 static uint16_t normalize_mem_addr(uint64_t addr) {
+	if(!fuzz_memory_region_head)
+		enum_memory();
 	addr = addr%total_ram_mem;
 	fuzz_memory_region *fmr = fuzz_memory_region_head;
 	while(addr!=0) {
@@ -59,18 +84,10 @@ static uint16_t normalize_mem_addr(uint64_t addr) {
 		addr -= fmr->length +1;
 		fmr = fmr->next;
 	}
-	/* if(addr>=0x5655 && addr<=0x565b) */
-	/* 	return 0; */
-	/* if(addr>=0x510 && addr<=0x518) */
-	/* 	return 0; */
-	/* if(addr>=0xae00 && addr<=0xae13) // PCI Hotplug */
-	/* 	return 0; */
-	/* if(addr>=0xaf00 && addr<=0xaf1f) // CPU Hotplug */
-	/* 	return 0; */
 	return addr;
 }
 
-int qtest_fuzz(const unsigned char *Data, size_t Size){
+static void qtest_fuzz(const unsigned char *Data, size_t Size){
 	const unsigned char *pos = Data;
 	const unsigned char *End = Data + Size;
 
@@ -199,11 +216,46 @@ int qtest_fuzz(const unsigned char *Data, size_t Size){
 				qtest_readl(s, addr);
 			}
 		}
+		else if(strcmp(cmd->name, "write_dma") == 0) {
+			if(pos + sizeof(uint32_t) + sizeof(uint16_t) < End) {
+				uint32_t addr = *(int32_t*)(pos);
+				pos += sizeof(uint32_t);
+				uint32_t val = 0x100000;
+				addr = normalize_mem_addr(addr);
+				qtest_writel(s, addr, val);
+			}
+		}
+		else if(strcmp(cmd->name, "out_dma") == 0) {
+			if(pos + sizeof(uint16_t) + sizeof(uint16_t) < End) {
+				uint16_t addr = *(int16_t*)(pos);
+				pos += sizeof(uint16_t);
+				uint32_t val = 0x100000;
+				addr = normalize_io_port(addr);
+				qtest_outl(s, addr, val);
+			}
+		}
 		// Now get the system up and running
-		/* qtest_recv_line(s); */
-		/* qtest_clock_step_next(s); */
-		/* main_loop_wait(false); */
+		qtest_recv_line(s);
+		main_loop_wait(false);
 	}
-	reset();
-	return 0;
 }
+
+static void *net_test_setup_nosocket(GString *cmd_line, void *arg)
+{
+	g_string_append(cmd_line, " -netdev hubport,hubid=0,id=hs0 ");
+	return arg;
+}
+
+static void register_qtest_fuzz_targets(void)
+{
+	QOSGraphTestOptions opts = {
+		.before = net_test_setup_nosocket,
+	};
+	fuzz_add_qos_target("qtest-dma-fuzz", "fuzz qtest dma",
+			"e1000e", &opts, &qos_setup, &qos_init_path, &save_device_state, &load_device_state,
+			NULL, &qtest_fuzz, NULL);
+	
+}
+
+fuzz_target_init(register_qtest_fuzz_targets);
+

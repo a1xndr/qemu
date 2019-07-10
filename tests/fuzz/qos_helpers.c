@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu-common.h"
 #include "qos_helpers.h"
+#include "fuzz.h"
 #include "qapi/qmp/qlist.h"
 #include "libqtest.h"
 #include "sysemu/qtest.h"
@@ -10,6 +11,7 @@
 #include <wordexp.h>
 #include "sysemu/sysemu.h"
 #include "sysemu/cpus.h"
+
 
 static void apply_to_node(const char *name, bool is_machine, bool is_abstract)
 {
@@ -167,12 +169,13 @@ char **fuzz_path_vec;
 void* qos_obj;
 QGuestAllocator *qos_alloc;
 
+int qos_argc;
+char **qos_argv;
 
-void run_one_test(char **path)
+void qos_build_main_args()
 {
+	char **path = fuzz_path_vec;
     QOSGraphNode *test_node;
-    QGuestAllocator *alloc = NULL;
-    void *obj;
     GString *cmd_line = g_string_new(path[0]);
     void *test_arg;
 
@@ -183,24 +186,15 @@ void run_one_test(char **path)
     if (test_node->u.test.before) {
         test_arg = test_node->u.test.before(cmd_line, test_arg);
     }
-	g_string_prepend(cmd_line, "qemu-system-i386 -display none -machine accel=fuzz -m 1500k "); //TODO: correct this
+	g_string_prepend(cmd_line, "qemu-system-i386 -display none -machine accel=fuzz "); //TODO: correct this
 	wordexp_t result;
 	wordexp (cmd_line->str, &result, 0);
 	qos_argc = result.we_wordc;
 	qos_argv = result.we_wordv;
 
-	real_main(qos_argc, qos_argv, NULL);
     g_string_free(cmd_line, true);
-
-    obj = qos_allocate_objects(global_qtest, &alloc);
-	qos_obj = obj;
-	qos_alloc = alloc;
-	
-    /* test_node->u.test.function(obj, test_arg, alloc); */
 }
 
-int qos_argc;
-char **qos_argv;
 
 void walk_path(QOSGraphNode *orig_path, int len)
 {
@@ -273,15 +267,23 @@ void walk_path(QOSGraphNode *orig_path, int len)
      */
     path_str = g_strjoinv("/", path_vec + 1);
 
-    /* put arch/machine in position 1 so run_one_test can do its work
-     * and add the command line at position 0.
-     */
-    path_vec[1] = path_vec[0];
-    path_vec[0] = g_string_free(cmd_line, false);
-	printf("path_str: %s path_vec[0]: %s [1]: %s\n", path_str, path_vec[0], path_vec[1]);
+	// Check that this is the test we care about:
+	char *test_name = strrchr(path_str, '/')+1;
+	if(strcmp(test_name, fuzz_target->name->str) == 0)
+	{
 
-	fuzz_path_vec = path_vec;
+		/* put arch/machine in position 1 so run_one_test can do its work
+		 * and add the command line at position 0.
+		 */
+		path_vec[1] = path_vec[0];
+		path_vec[0] = g_string_free(cmd_line, false);
+		printf("path_str: %s path_vec[0]: %s [1]: %s\n", path_str, path_vec[0], path_vec[1]);
 
+		fuzz_path_vec = path_vec;
+	} 
+	else {
+		g_free(path_vec);
+	}
 
     g_free(path_str);
 }

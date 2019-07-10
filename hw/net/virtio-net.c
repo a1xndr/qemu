@@ -1059,6 +1059,7 @@ static void virtio_net_handle_ctrl(VirtIODevice *vdev, VirtQueue *vq)
         }
         if (iov_size(elem->in_sg, elem->in_num) < sizeof(status) ||
             iov_size(elem->out_sg, elem->out_num) < sizeof(ctrl)) {
+			printf("IOVS: %ld  %ld\n",iov_size(elem->in_sg, elem->in_num), iov_size(elem->out_sg, elem->out_num));
             virtio_error(vdev, "virtio-net ctrl missing headers");
             virtqueue_detach_element(vq, elem, 0);
             g_free(elem);

@@ -819,4 +819,5 @@ bool qtest_driver(void)
 void qtest_server_recv(GString *inbuf){
 	qtest_process_inbuf(NULL, inbuf);
 }
+
 #endif

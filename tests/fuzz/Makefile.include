@@ -1,0 +1,3 @@
+tests/fuzz/i440fx_fuzzer$(EXESUF): tests/fuzz/i440fx_fuzzer.o $(libqos-pc-obj-y) $(obj-y)
+
+
