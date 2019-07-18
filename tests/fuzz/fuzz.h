@@ -32,6 +32,7 @@ typedef struct FuzzTarget {
 
 
 
+
 void save_device_state(void);
 void save_vm_state(void);
 void reboot(void);
@@ -41,7 +42,7 @@ void load_vm_state(void);
 
 
 void save_device_state(void);
-void setup_qtest(void);
+void qtest_setup(void);
 void fuzz_register_mr(const MemoryRegion *mr);
 
 FuzzTarget* fuzz_get_target(char* name);

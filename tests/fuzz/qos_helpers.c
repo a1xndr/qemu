@@ -186,7 +186,7 @@ void qos_build_main_args()
     if (test_node->u.test.before) {
         test_arg = test_node->u.test.before(cmd_line, test_arg);
     }
-	g_string_prepend(cmd_line, "qemu-system-i386 -display none -machine accel=fuzz "); //TODO: correct this
+	g_string_prepend(cmd_line, "qemu-system-i386 -display none -machine accel=fuzz -m 3 "); //TODO: correct this
 	wordexp_t result;
 	wordexp (cmd_line->str, &result, 0);
 	qos_argc = result.we_wordc;
@@ -271,7 +271,6 @@ void walk_path(QOSGraphNode *orig_path, int len)
 	char *test_name = strrchr(path_str, '/')+1;
 	if(strcmp(test_name, fuzz_target->name->str) == 0)
 	{
-
 		/* put arch/machine in position 1 so run_one_test can do its work
 		 * and add the command line at position 0.
 		 */

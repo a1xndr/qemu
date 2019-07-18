@@ -51,7 +51,7 @@ void fuzz_add_qos_target(const char* name,
 
 // Do what is normally done in qos_test.c:main
 void qos_setup(void){
-	setup_qtest();
+	qtest_setup();
 	qos_set_machines_devices_available();
 	qos_graph_foreach_test_path(walk_path);
 	qos_build_main_args();

@@ -75,19 +75,19 @@ void load_vm_state()
 	qemu_freopen_ro_ram(ramfile);
 
 	vm_stop(RUN_STATE_RESTORE_VM);
-	qemu_system_reset(SHUTDOWN_CAUSE_NONE);
+	/* qemu_system_reset(SHUTDOWN_CAUSE_NONE); */
 	
 	int ret = qemu_loadvm_state(ramfile);
 	if (ret < 0){
 		printf("reset error\n");
 		exit(-1);
 	}
+	migration_incoming_state_destroy();
 	vm_start();
 
-	migration_incoming_state_destroy();
 }
 
-void setup_qtest()
+void qtest_setup()
 {
 	s = qtest_init_fuzz(NULL, NULL);
 	global_qtest = s;
@@ -161,7 +161,6 @@ int LLVMFuzzerTestOneInput(const unsigned char *Data, size_t Size)
 
 	if(fuzz_target->post_fuzz)
 		fuzz_target->pre_fuzz();
-	
 	if(fuzz_target->reset)
 		fuzz_target->reset();
 

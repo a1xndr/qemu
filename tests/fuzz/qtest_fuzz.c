@@ -8,6 +8,8 @@
 #include "exec/address-spaces.h"
 #include "sysemu/sysemu.h"
 #include "qemu/main-loop.h"
+#include <wordexp.h>
+#include "qemu-common.h"
 
 
 #include "fuzz.h"
@@ -235,7 +237,7 @@ static void qtest_fuzz(const unsigned char *Data, size_t Size){
 			}
 		}
 		// Now get the system up and running
-		qtest_recv_line(s);
+		g_string_free(qtest_recv_line(s), true);
 		main_loop_wait(false);
 	}
 }
@@ -245,7 +247,8 @@ static void *net_test_setup_nosocket(GString *cmd_line, void *arg)
 	g_string_append(cmd_line, " -netdev hubport,hubid=0,id=hs0 ");
 	return arg;
 }
-
+int qtest_argc;
+char **qtest_argv;
 static void register_qtest_fuzz_targets(void)
 {
 	QOSGraphTestOptions opts = {
@@ -254,6 +257,16 @@ static void register_qtest_fuzz_targets(void)
 	fuzz_add_qos_target("qtest-dma-fuzz", "fuzz qtest dma",
 			"e1000e", &opts, &qos_setup, &qos_init_path, &save_device_state, &load_device_state,
 			NULL, &qtest_fuzz, NULL);
+	GString *cmd_line = g_string_new("qemu-system-i386 -display none -machine accel=fuzz -m 3"); //TODO: correct this
+	wordexp_t result;
+	wordexp (cmd_line->str, &result, 0);
+	qtest_argc = result.we_wordc;
+	qtest_argv = result.we_wordv;
+	g_string_free(cmd_line, true);
+	
+	/* fuzz_add_target("qtest-dma-fuzz", "fuzz qtest dma", */
+	/* 		&qtest_setup, NULL, NULL, &reboot, */
+	/* 		NULL, &qtest_fuzz, NULL, &qtest_argc, &qtest_argv); */
 	
 }
 

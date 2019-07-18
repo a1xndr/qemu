@@ -116,6 +116,7 @@ static void virtio_net_ctrl_fuzz_multi(const unsigned char *Data, size_t Size)
 	}
 }
 
+int *sv;
 static void virtio_net_tx_fuzz(const unsigned char *Data, size_t Size)
 {
 	uint64_t req_addr[10];
@@ -137,7 +138,7 @@ static void virtio_net_tx_fuzz(const unsigned char *Data, size_t Size)
 		Data += sizeof(vqa);
 		Size -= sizeof(vqa);
 
-		q = net_if->queues[1];
+		q = net_if->queues[vqa.queue%3];
 
 		vqa.length = vqa.length >= Size ? Size :  vqa.length;
 
@@ -158,16 +159,30 @@ static void virtio_net_tx_fuzz(const unsigned char *Data, size_t Size)
 		qvirtqueue_kick(dev, q, free_head);
 		qtest_clock_step_next(s);
 		main_loop_wait(false);
-		/* qvirtio_wait_used_elem(dev, q, free_head, NULL, QVIRTIO_NET_TIMEOUT_US); */
 		for(int i =0; i<reqi; i++)
-		guest_free(t_alloc, req_addr[i]);
+			guest_free(t_alloc, req_addr[i]);
+		/* g_string_free(qtest_recv_line(s), true); */
 	}
+
+	qtest_clear_rxbuf(s);
+    qos_object_queue_destroy(qos_obj);
 }
 
 
 static void *virtio_net_test_setup_nosocket(GString *cmd_line, void *arg)
 {
-	g_string_append(cmd_line, " -netdev hubport,hubid=0,id=hs0 ");
+	/* g_string_append(cmd_line, " -netdev hubport,hubid=0,id=hs0 "); */
+
+	/* g_string_append(cmd_line, " -netdev hubport,hubid=0,id=hs0 "); */
+
+	if(!sv){
+		sv = g_new(int, 2);
+		int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, sv);
+		fcntl(sv[0], F_SETFL, O_NONBLOCK);
+		g_assert_cmpint(ret, !=, -1);
+	}
+    g_string_append_printf(cmd_line, " -netdev socket,fd=%d,id=hs0 ", sv[1]);
+    /* g_test_queue_destroy(virtio_net_test_cleanup, sv); */
 	return arg;
 }
 
