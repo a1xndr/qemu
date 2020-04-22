@@ -27,6 +27,7 @@ SECTIONS
       __stop___llvm_prf_cnts = .;
 
       /* Internal Libfuzzer TracePC object which contains the ValueProfileMap */
+      *(.bss._ZN6fuzzer3TPCE);
       FuzzerTracePC*(.bss*);
   }
   .data.fuzz_end : ALIGN(4K)
