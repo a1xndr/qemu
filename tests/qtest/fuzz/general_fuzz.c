@@ -205,7 +205,8 @@ static bool get_io_address(address_range *result,
     int i = 0;
     int ind = index;
     size_t abs_addr;
-
+    AddressSpace *as = (io_space == get_system_memory()) ? &address_space_memory : &address_space_io;
+    /* mtree_info(false,false,false,false); */
     while (ind >= 0 && fuzzable_memoryregions->len) {
         *result = (address_range){0, 0};
         mr = g_ptr_array_index(fuzzable_memoryregions, i);
@@ -219,10 +220,15 @@ static bool get_io_address(address_range *result,
              * Only consider the region if it is rooted at the io_space we want
              */
             if (root == io_space) {
-                ind--;
-                candidate_regions++;
-                result->addr = abs_addr + (offset % mr->size);
-                result->len = mr->size - (offset % mr->size);
+                hwaddr xlat, len;
+                if(address_space_translate(as, abs_addr, &xlat, &len, true, MEMTXATTRS_UNSPECIFIED) == mr){
+                    ind--;
+                    candidate_regions++;
+                    /* printf("Using Candidate %lx %s\n", result->addr, */
+                    /* object_get_canonical_path_component(&(mr->parent_obj))); */
+                    result->addr = abs_addr + (offset % mr->size);
+                    result->len = mr->size - (offset % mr->size);
+                }
             }
         }
         ++i;
@@ -562,9 +568,16 @@ static void general_fuzz(QTestState *s, const unsigned char *Data, size_t Size)
          * fuzzer, overall. Set a timeout to avoid hurting performance, too much
          */
         if (timeout) {
+            sigset_t new_set;
+            sigset_t old_set;
+            sigemptyset(&new_set);
+            sigaddset(&new_set, SIGALRM);
+            sigprocmask(SIG_UNBLOCK, &new_set, &old_set);
+
+            printf("Setting timeout %x\n", timeout);
             struct sigaction sact;
             sigemptyset(&sact.sa_mask);
-            sact.sa_flags = 0;
+            sact.sa_flags   = SA_NODEFER;
             sact.sa_handler = handle_timeout;
             sigaction(SIGALRM, &sact, NULL);
             ualarm(timeout, 0);
