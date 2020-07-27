@@ -700,14 +700,15 @@ static void general_pre_fuzz(QTestState *s)
 
     fuzzable_memoryregions = g_ptr_array_new();
     fuzzable_pci_devices = g_ptr_array_new();
-    wordexp_t result;
-    wordexp(getenv("QEMU_FUZZ_OBJECTS"), &result, 0);
-    for (int i = 0; i < result.we_wordc; i++) {
+    printf("Matching objects by names %s\n", getenv("QEMU_FUZZ_OBJECTS"));
+    char **result = g_strsplit (getenv("QEMU_FUZZ_OBJECTS"), " ", -1);
+    for (int i = 0; result[i] != NULL; i++) {
+        printf("Matching objects by name %s\n", result[i]);
         object_child_foreach_recursive(qdev_get_machine(),
                                     locate_fuzz_objects,
-                                    result.we_wordv[i]);
+                                    result[i]);
     }
-    wordfree(&result);
+    g_strfreev(result);
     printf("This process will try to fuzz the following MemoryRegions:\n");
     for (int i = 0; i < fuzzable_memoryregions->len; i++) {
         MemoryRegion *mr;
