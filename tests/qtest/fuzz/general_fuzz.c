@@ -574,7 +574,6 @@ static void general_fuzz(QTestState *s, const unsigned char *Data, size_t Size)
             sigaddset(&new_set, SIGALRM);
             sigprocmask(SIG_UNBLOCK, &new_set, &old_set);
 
-            printf("Setting timeout %x\n", timeout);
             struct sigaction sact;
             sigemptyset(&sact.sa_mask);
             sact.sa_flags   = SA_NODEFER;
@@ -705,7 +704,7 @@ static void general_pre_fuzz(QTestState *s)
                                     locate_fuzz_objects,
                                     result.we_wordv[i]);
     }
-
+    wordfree(&result);
     printf("This process will try to fuzz the following MemoryRegions:\n");
     for (int i = 0; i < fuzzable_memoryregions->len; i++) {
         MemoryRegion *mr;
