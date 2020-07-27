@@ -226,8 +226,11 @@ static bool get_io_address(address_range *result,
                     candidate_regions++;
                     /* printf("Using Candidate %lx %s\n", result->addr, */
                     /* object_get_canonical_path_component(&(mr->parent_obj))); */
-                    result->addr = abs_addr + (offset % mr->size);
-                    result->len = mr->size - (offset % mr->size);
+                    result->addr = abs_addr;
+                    if(mr->size){
+                        result->addr += (offset % mr->size);
+                    }
+                    result->len = mr->size-(result->addr-abs_addr);
                 }
             }
         }
@@ -712,6 +715,10 @@ static void general_pre_fuzz(QTestState *s)
         printf("  * %s (size %lx)\n",
                object_get_canonical_path_component(&(mr->parent_obj)),
                mr->addr);
+    }
+    if(!fuzzable_memoryregions->len){
+        printf("No fuzzable memory regions found...\n");
+        exit(0);
     }
 
 #ifdef TARGET_I386
