@@ -5380,6 +5380,13 @@ int kvm_arch_handle_exit(CPUState *cs, struct kvm_run *run)
         assert(run->msr.reason == KVM_MSR_EXIT_REASON_FILTER);
         ret = kvm_handle_wrmsr(cpu, run);
         break;
+    case KVM_EXIT_HYPERCALL:
+        /* We only enable MSR filtering, any other exit is bogus */
+	printf("HYPERCALL RECEIVED\n");
+	kvm_arch_get_registers(cs);
+	vm_stop(RUN_STATE_PAUSED);
+	ret = 0;
+        break;
     default:
         fprintf(stderr, "KVM: unknown exit reason %d\n", run->exit_reason);
         ret = -1;

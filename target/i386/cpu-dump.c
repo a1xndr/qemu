@@ -99,9 +99,9 @@ cpu_x86_dump_seg_cache(CPUX86State *env, FILE *f,
 {
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
-        qemu_fprintf(f, "%-3s=%04x %016" PRIx64 " %08x %08x", name,
+        qemu_fprintf(f, "%-3s=%04x %016" PRIx64 " %08x %x", name,
                      sc->selector, sc->base, sc->limit,
-                     sc->flags & 0x00ffff00);
+                     sc->flags);
     } else
 #endif
     {
@@ -423,6 +423,32 @@ void x86_cpu_dump_state(CPUState *cs, FILE *f, int flags)
     }
     cpu_x86_dump_seg_cache(env, f, "LDT", &env->ldt);
     cpu_x86_dump_seg_cache(env, f, "TR", &env->tr);
+
+#define dumpmsr(name) \
+    qemu_fprintf(f, #name " = %lx\n", env-> name );
+#define dumpmsr32(name) \
+    qemu_fprintf(f, #name " = %x\n", env-> name );
+
+    dumpmsr(kernelgsbase);
+    dumpmsr(lstar);
+    dumpmsr(cstar);
+    dumpmsr(fmask);
+    
+    dumpmsr32(sysenter_cs);
+    dumpmsr(sysenter_esp);
+    dumpmsr(sysenter_eip);
+    dumpmsr(star);
+    
+    dumpmsr(tsc_deadline);
+    dumpmsr(tsc_aux);
+    
+    dumpmsr(pat);
+    dumpmsr(xcr0);
+    
+
+    uint64_t val = cpu_get_apic_base(env_archcpu(env)->apic_state);
+    qemu_fprintf(f, "apicbase =     %lx\n", val );
+
 
 #ifdef TARGET_X86_64
     if (env->hflags & HF_LMA_MASK) {
